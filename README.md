@@ -269,3 +269,7 @@ file-description type the UI sees.
 fork of the Citadel author's fork of `apple/swift-nio-ssh` — not Apple's
 package. The version is pinned exactly and `Package.resolved` records the
 resolved revisions. Worth revisiting if Citadel points back at upstream.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
