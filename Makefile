@@ -32,6 +32,7 @@ banner:
 	@test -f Resources/IconVariants/icon-1c-bold.png || ./scripts/make-icon.sh
 	swift scripts/BannerRenderer.swift Resources/IconVariants/icon-1c-bold.png build/banners
 	cp build/banners/banner-3-window.png docs/banner.png
+	sips -Z 1280 build/banners/banner-social-preview.png --out docs/social-preview.png >/dev/null
 
 # Release build for a GitHub release: dist/GlassFTP-<version>.zip and .dmg
 dist:

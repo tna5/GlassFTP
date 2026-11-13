@@ -2,10 +2,42 @@
   <img src="docs/banner.png" alt="GlassFTP — a native SFTP client for macOS, shaped like the Finder">
 </p>
 
-# GlassFTP
+<h1 align="center">GlassFTP — a native SFTP client for Mac</h1>
 
-A native macOS SFTP client with a Finder-shaped interface and a Liquid Glass
-surface. Built for macOS 26.
+<p align="center">
+  <b>Browse, upload and download files over SFTP/SSH in a window that works like the Finder.</b><br>
+  Free and open source · SwiftUI + AppKit · Liquid Glass design for macOS 26 Tahoe
+</p>
+
+<p align="center">
+  <a href="../../releases/latest"><img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS%20.dmg-0A84FF?style=for-the-badge&logo=apple&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <img alt="macOS 26+" src="https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white">
+  <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-555555">
+  <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
+  <img alt="SwiftUI" src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit-1575F9">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/License-MIT-green"></a>
+</p>
+
+GlassFTP is a **native macOS SFTP client** — a free, open-source alternative to
+FileZilla, Cyberduck or Transmit for people who want a remote server to feel
+like a local folder. It has the Finder's **Icon, List and Column views**,
+**drag and drop** to upload, download and move files, **Quick Look** previews
+with the space bar, **Go to Folder** (⌘⇧G), a path bar, and Get Info with
+**chmod**. Transfers run in parallel and resume after a failure. Connections
+use SSH with passwords or keys (ed25519, RSA, ECDSA), stored in the macOS
+Keychain, and can go through SOCKS5 or HTTP proxies.
+
+**Highlights**
+
+- 🗂 Finder-style column view, list view and icon view
+- 🖱 Drag and drop between the Finder and the server, and inside the server
+- 👀 Quick Look preview for images, PDFs and source code
+- ⚡️ Parallel, resumable transfers — fast on large files and big folders
+- 🔐 SSH keys, Keychain passwords, `known_hosts` host-key checking
+- 💎 Liquid Glass interface built for macOS 26 Tahoe
 
 ## Install
 
@@ -270,6 +302,29 @@ file-description type the UI sees.
 fork of the Citadel author's fork of `apple/swift-nio-ssh` — not Apple's
 package. The version is pinned exactly and `Package.resolved` records the
 resolved revisions. Worth revisiting if Citadel points back at upstream.
+
+## FAQ
+
+**Is GlassFTP free?** Yes — free and open source under the MIT license.
+
+**Does it support FTP or FTPS?** Not yet: only SFTP (file transfer over SSH).
+The UI talks to a `FileProvider` protocol, so another transport can be added
+without touching it.
+
+**Which Macs does it run on?** macOS 26 Tahoe or later, on Apple Silicon.
+
+**How is it different from FileZilla or Cyberduck?** It is a native Mac app
+that behaves like the Finder — same views, shortcuts, Quick Look and drag and
+drop — instead of a two-pane, cross-platform layout.
+
+**Where are my passwords stored?** In the macOS login Keychain, never in a
+plain file.
+
+## Contributing
+
+Bug reports and pull requests are welcome — see
+[CONTRIBUTING.md](CONTRIBUTING.md). Security issues: see
+[SECURITY.md](SECURITY.md).
 
 ## License
 

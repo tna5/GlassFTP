@@ -11,9 +11,12 @@ import AppKit
 import CoreImage
 
 let width: CGFloat = 1280
-let height: CGFloat = 400
+/// 400 for the README banner; the social preview reuses the window layout at
+/// 640, shifted up by `layoutOffset` so it sits in the middle.
+var height: CGFloat = 400
+var layoutOffset: CGFloat = 0
 let scale: CGFloat = 2
-let canvas = CGRect(x: 0, y: 0, width: width, height: height)
+var canvas: CGRect { CGRect(x: 0, y: 0, width: width, height: height) }
 
 // MARK: - Helpers
 
@@ -90,7 +93,8 @@ func glass(
     context.saveGState()
     context.addPath(shape)
     context.clip()
-    context.draw(backdrop, in: canvas)
+    // Snapshots are of the whole bitmap, so undo the layout shift.
+    context.draw(backdrop, in: canvas.offsetBy(dx: 0, dy: -layoutOffset))
     context.setFillColor(tint)
     context.fill(rect)
     // Light pooling inside the top edge.
@@ -235,9 +239,12 @@ func daylight(icon: CGImage) -> CGContext {
 
 func window(icon: CGImage) -> CGContext {
     let context = makeContext()
+    let dy = layoutOffset
+    context.translateBy(x: 0, y: dy)
     context.drawLinearGradient(
         gradient([(color(0x0D2A6B), 0), (color(0x1747B8), 0.5), (color(0x3A2C9E), 1)]),
-        start: CGPoint(x: 0, y: 0), end: CGPoint(x: width, y: height), options: []
+        start: CGPoint(x: 0, y: -dy), end: CGPoint(x: width, y: height - dy),
+        options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
     )
     blob(context, center: CGPoint(x: 980, y: 230), radius: 420, 0x5EA8FF, 0.55)
     blob(context, center: CGPoint(x: 120, y: 420), radius: 380, 0x7C5CFF, 0.35)
@@ -245,7 +252,7 @@ func window(icon: CGImage) -> CGContext {
     let backdrop = blurred(snapshot(context), radius: 22)
 
     // The window, running off the right and bottom edges.
-    let frame = CGRect(x: 640, y: -40, width: 700, height: 390)
+    let frame = CGRect(x: 640, y: -40 - dy, width: 700, height: 390 + dy)
     glass(context, frame, radius: 26, backdrop: backdrop, tint: white(0.12), rim: 0.7, shadow: 0.35)
     let inner = blurred(snapshot(context), radius: 6)
 
@@ -338,4 +345,9 @@ try FileManager.default.createDirectory(at: output, withIntermediateDirectories:
 save(midnight(icon: icon), output, "1-midnight")
 save(daylight(icon: icon), output, "2-daylight")
 save(window(icon: icon), output, "3-window")
-print("rendered 3 banners into \(output.path)")
+
+// GitHub's social preview size.
+height = 640
+layoutOffset = 120
+save(window(icon: icon), output, "social-preview")
+print("rendered 4 images into \(output.path)")
