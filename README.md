@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/banners/banner-1-midnight.png" alt="GlassFTP — a native SFTP client for macOS, shaped like the Finder">
+  <img src="docs/banner.png" alt="GlassFTP — a native SFTP client for macOS, shaped like the Finder">
 </p>
 
 # GlassFTP
@@ -90,7 +90,7 @@ make debug        # same, debug configuration
 make bundle       # build/GlassFTP.app without launching
 make dist         # release build zipped into dist/ for a GitHub release
 make icon         # regenerate Resources/AppIcon.icns
-make banners      # regenerate the README banners in docs/banners
+make banner       # regenerate the README banner, docs/banner.png
 make clean
 ```
 

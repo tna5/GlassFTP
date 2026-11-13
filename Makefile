@@ -1,6 +1,6 @@
 CONFIG ?= release
 
-.PHONY: build bundle run debug test clean icon banners dist
+.PHONY: build bundle run debug test clean icon banner dist
 
 build:
 	swift build -c $(CONFIG)
@@ -28,9 +28,10 @@ test:
 icon:
 	./scripts/make-icon.sh
 
-banners:
+banner:
 	@test -f Resources/IconVariants/icon-1c-bold.png || ./scripts/make-icon.sh
-	swift scripts/BannerRenderer.swift Resources/IconVariants/icon-1c-bold.png docs/banners
+	swift scripts/BannerRenderer.swift Resources/IconVariants/icon-1c-bold.png build/banners
+	cp build/banners/banner-3-window.png docs/banner.png
 
 # Release build, zipped for a GitHub release: dist/GlassFTP-<version>.zip
 dist:
