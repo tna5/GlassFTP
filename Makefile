@@ -33,13 +33,14 @@ banner:
 	swift scripts/BannerRenderer.swift Resources/IconVariants/icon-1c-bold.png build/banners
 	cp build/banners/banner-3-window.png docs/banner.png
 
-# Release build, zipped for a GitHub release: dist/GlassFTP-<version>.zip
+# Release build for a GitHub release: dist/GlassFTP-<version>.zip and .dmg
 dist:
 	$(MAKE) bundle CONFIG=release
 	@mkdir -p dist
 	@VERSION=$$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist); \
 	ditto -c -k --keepParent build/GlassFTP.app dist/GlassFTP-$$VERSION.zip && \
 	shasum -a 256 dist/GlassFTP-$$VERSION.zip
+	./scripts/make-dmg.sh
 
 clean:
 	rm -rf .build build dist

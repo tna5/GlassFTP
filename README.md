@@ -9,16 +9,17 @@ surface. Built for macOS 26.
 
 ## Install
 
-Download `GlassFTP-<version>.zip` from the
-[Releases](../../releases) page, unzip it and move **GlassFTP.app** to
-`/Applications`.
+Requires macOS 26 on an Apple Silicon Mac.
 
-The build is signed ad hoc, not notarized, so the first launch is blocked by
-Gatekeeper: right-click the app and choose **Open**, or run
+1. Download **`GlassFTP-<version>.dmg`** from the [Releases](../../releases) page.
+2. Open it and drag **GlassFTP** onto the **Applications** folder.
+3. The app is not notarized yet, so macOS blocks the first launch: open it
+   once, then go to **System Settings › Privacy & Security** and click
+   **Open Anyway**. Or, in Terminal:
 
-```
-xattr -dr com.apple.quarantine /Applications/GlassFTP.app
-```
+   ```
+   xattr -dr com.apple.quarantine /Applications/GlassFTP.app
+   ```
 
 Or build it yourself — see [Building](#building).
 
@@ -88,7 +89,7 @@ make run          # release build, bundle, launch
 make test         # run the assertion suite
 make debug        # same, debug configuration
 make bundle       # build/GlassFTP.app without launching
-make dist         # release build zipped into dist/ for a GitHub release
+make dist         # release build: dist/GlassFTP-<version>.zip and .dmg
 make icon         # regenerate Resources/AppIcon.icns
 make banner       # regenerate the README banner, docs/banner.png
 make clean
