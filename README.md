@@ -90,8 +90,8 @@ Or build it yourself — see [Building](#building).
   handled per Settings — ask, overwrite, overwrite if newer or if the size
   differs, resume, keep both or skip — and failed files are retried on a fresh
   connection, resuming where they stopped.
-- **Settings** (⌘,) — General, Transfers, Connection, Proxy and Advanced
-  tabs; every option is explained in place and each tab resets on its own.
+- **Settings** (⌘,) — General, Transfers, Connection, Proxy, Agents and
+  Advanced tabs; every option is explained in place and each tab resets on its own.
 - **Proxy** — SOCKS5, HTTP CONNECT, or the system's proxy settings, set
   globally; each connection can use the default, connect directly, or carry its
   own.
@@ -107,6 +107,9 @@ Or build it yourself — see [Building](#building).
 - **Host keys** — trust-on-first-use against `~/.ssh/known_hosts`, sharing the
   same file as OpenSSH. A pinned host that presents a different key of the same
   type is refused outright, with no override.
+- **AI agents (MCP)** — Settings › Agents lets Claude Desktop, Claude Code,
+  Cursor or any other MCP client use the servers you pick. See
+  [AI agents](#ai-agents-mcp).
 
 Only SFTP is implemented, but everything above the `FileProvider` protocol is
 protocol-agnostic, so a second transport does not touch the UI.
@@ -256,6 +259,48 @@ or CONNECT handshake, and hands the channel to `SSHClient.connect(on:)`. The
 SSH server's banner can arrive in the same read as the proxy's final reply; it
 is held back and delivered once the SSH handler has sent its first bytes.
 
+## AI agents (MCP)
+
+GlassFTP is also a [Model Context Protocol](https://modelcontextprotocol.io)
+server, so an AI agent on the same Mac can browse and transfer files on your
+servers without ever seeing a password.
+
+1. **Settings › Agents** → turn on **Let AI agents use GlassFTP**.
+2. Tick the servers agents may use, and pick what they may do: browse and
+   download only (the default), also upload, create, rename and move, or also
+   delete.
+3. Connect the agent: **Add to Claude Desktop** edits
+   `claude_desktop_config.json` for you (quit and reopen Claude afterwards).
+   For Claude Code, **Copy Claude Code Command** puts this on the clipboard:
+
+   ```
+   claude mcp add --scope user glassftp -- /Applications/GlassFTP.app/Contents/MacOS/GlassFTP --mcp
+   ```
+
+   Any other client takes the same command, `GlassFTP --mcp`, as a stdio
+   server; **Copy JSON** gives the usual `mcpServers` block.
+
+The agent starts the binary with `--mcp`. No window opens: the process reads
+the saved connections, the Keychain and `known_hosts` like the app does, and
+serves these tools over stdin/stdout:
+
+| Tool | Needs |
+|---|---|
+| `list_servers`, `list_directory`, `get_info`, `read_text_file`, `download_file` | browsing |
+| `upload_file`, `write_text_file`, `create_directory`, `move`, `set_permissions` | upload, create, rename and move |
+| `delete` (files, links and empty folders) | delete |
+
+Settings are read again on every call, so switching agents off or unticking
+a server takes effect on the agent's next request. The list of tools is read
+when the agent starts, so restart the agent after changing the permission level.
+
+Some limits are deliberate. An agent cannot accept a new host key: a server
+must have been opened once in the window. A password server needs its password
+saved in the Keychain. Folders are not transferred recursively, and deleting a
+folder works only when it is empty. With the ad-hoc signature from
+`scripts/bundle.sh`, the first Keychain read after each rebuild asks for
+permission, as the app itself does.
+
 ## Layout
 
 ```
@@ -263,6 +308,7 @@ Sources/GlassFTP/
   Core/     FileProvider protocol, RemoteEntry, POSIX path helpers, errors
   SFTP/     Citadel-backed provider, chunked transfers, known_hosts + TOFU
   Model/    connections, Keychain, browser state, transfer queue and planner
+  MCP/      `--mcp`: JSON-RPC over stdio and the tools agents call
   UI/       SwiftUI views
   AppKit/   column browser, drag-out file promises
 ```
@@ -319,6 +365,11 @@ drop — instead of a two-pane, cross-platform layout.
 
 **Where are my passwords stored?** In the macOS login Keychain, never in a
 plain file.
+
+**Can Claude or another AI agent use my servers?** Yes, if you allow it in
+Settings › Agents. GlassFTP acts as an MCP server for the servers you tick,
+read-only unless you allow more, and the agent never sees your passwords or
+keys.
 
 ## Contributing
 

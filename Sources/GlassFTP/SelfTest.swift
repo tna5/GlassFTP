@@ -31,6 +31,7 @@ enum SelfTest {
         proxyTests()
         privateKeyTests()
         knownHostsRemovalTests()
+        agentTests()
         scaleBenchmark()
 
         print("")
@@ -478,7 +479,70 @@ enum SelfTest {
         expect(again == connection, "new fields round-trip, custom proxy included")
     }
 
-    // MARK: - Path resolution
+    // MARK: - Agents (MCP)
+
+    @MainActor
+    private static func agentTests() {
+        section("Agents (MCP)")
+
+        let old = try? JSONDecoder().decode(AppSettings.self, from: Data(#"{"general":{"showHiddenFiles":false}}"#.utf8))
+        expect(old?.agents == AppSettings.Agents(), "settings from before agents decode to the defaults")
+        expect(AppSettings.Agents().enabled == false, "agents are off by default")
+        expect(AppSettings.Agents().access, .readOnly, "and read-only by default")
+        expect(AppSettings.Agents().allowedConnectionIDs.isEmpty, "with no server shared")
+
+        var agents = AppSettings.Agents()
+        agents.enabled = true
+        agents.access = .readWrite
+        agents.allowedConnectionIDs = [UUID()]
+        let again = try? JSONDecoder().decode(AppSettings.Agents.self, from: JSONEncoder().encode(agents))
+        expect(again == agents, "agent settings round-trip")
+
+        func names(_ access: AppSettings.Agents.Access) -> Set<String> {
+            Set(MCPTools.definitions(for: access).compactMap { $0["name"] as? String })
+        }
+        expect(names(.readOnly).contains("download_file"), "read-only still downloads")
+        expect(!names(.readOnly).contains("upload_file"), "read-only lists no upload")
+        expect(!names(.readOnly).contains("delete"), "read-only lists no delete")
+        expect(names(.readWrite).contains("move") && !names(.readWrite).contains("delete"), "read-write lists move but not delete")
+        expect(names(.full).count, MCPTools.all.count, "full access lists every tool")
+
+        expect(MCPTools.decodeText(Data("héllo".utf8), truncated: false), "héllo", "UTF-8 text decodes")
+        let cut = Data("é".utf8).prefix(1)
+        expect(MCPTools.decodeText(Data("ab".utf8) + cut, truncated: true), "ab", "a character cut in half is dropped")
+        expect(MCPTools.decodeText(Data([0xFF, 0xFE, 0x00]), truncated: false) == nil, "binary is refused")
+
+        final class Sink: @unchecked Sendable { var messages: [[String: Any]] = [] }
+        let sink = Sink()
+        let session = MCPSession(output: MCPOutput { data in
+            if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                sink.messages.append(object)
+            }
+        })
+        func send(_ text: String) -> [String: Any]? {
+            sink.messages.removeAll()
+            session.receive(Data(text.utf8))
+            return sink.messages.last
+        }
+
+        let initialize = send(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}"#)
+        let result = initialize?["result"] as? [String: Any]
+        expect(result?["protocolVersion"] as? String, "2025-06-18", "a known protocol version is echoed")
+        expect((result?["capabilities"] as? [String: Any])?["tools"] != nil, "the tools capability is announced")
+
+        let future = send(#"{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2099-01-01"}}"#)
+        expect((future?["result"] as? [String: Any])?["protocolVersion"] as? String, MCPServer.protocolVersions[0], "an unknown version gets the newest supported one")
+
+        expect(send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#) == nil, "notifications get no answer")
+        let unknown = send(#"{"jsonrpc":"2.0","id":"x","method":"resources/list"}"#)
+        expect((unknown?["error"] as? [String: Any])?["code"] as? Int, -32601, "an unknown method is a JSON-RPC error")
+        expect(unknown?["id"] as? String, "x", "string ids are kept")
+        let garbage = send("{not json")
+        expect((garbage?["error"] as? [String: Any])?["code"] as? Int, -32700, "malformed input is a parse error")
+        let tools = send(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#)
+        expect(((tools?["result"] as? [String: Any])?["tools"] as? [Any])?.isEmpty == false, "tools/list answers")
+    }
+
 
     private static func pathResolutionTests() {
         section("RemotePath.resolve")
