@@ -38,7 +38,9 @@ hdiutil create -quiet -srcfolder "$WORK/stage" -volname "$VOLUME" -fs HFS+ \
 	-format UDRW -size 200m "$WORK/rw.dmg"
 MOUNT="$(hdiutil attach "$WORK/rw.dmg" -readwrite -noverify -noautoopen | awk -F'\t' '/\/Volumes\// {print $NF}')"
 
-if ! osascript <<APPLESCRIPT
+# Run in the background with a watchdog: on a machine nobody is watching (CI),
+# the Automation prompt for Finder can wait forever instead of failing.
+osascript <<APPLESCRIPT &
 tell application "Finder"
 	tell disk "$VOLUME"
 		open
@@ -61,8 +63,14 @@ tell application "Finder"
 	end tell
 end tell
 APPLESCRIPT
-then
-	echo "warning: could not lay out the window (Finder automation denied?); using defaults" >&2
+LAYOUT_PID=$!
+( sleep "${DMG_LAYOUT_TIMEOUT:-90}"; kill "$LAYOUT_PID" 2>/dev/null ) &
+WATCHDOG_PID=$!
+if wait "$LAYOUT_PID"; then
+	kill "$WATCHDOG_PID" 2>/dev/null || true
+else
+	kill "$WATCHDOG_PID" 2>/dev/null || true
+	echo "warning: could not lay out the window (Finder automation denied or timed out); using defaults" >&2
 fi
 
 # Volume icon. After Finder has been through the window, which otherwise
