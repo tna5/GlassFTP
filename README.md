@@ -54,8 +54,7 @@ Requires macOS 26 on an Apple Silicon Mac.
    ```
 
 Every push to `main` publishes a fresh DMG as the latest release, after the
-self-tests pass; each other branch keeps a rolling `preview-<branch>`
-pre-release with its newest build (see `.github/workflows/dmg.yml`).
+self-tests pass (see `.github/workflows/dmg.yml`).
 
 Or build it yourself — see [Building](#building).
 
