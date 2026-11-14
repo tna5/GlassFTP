@@ -47,9 +47,10 @@ enum MCPServer {
             }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    // Spelled out: with `exit` returning `Never`, the closure
-                    // matches both the throwing and non-throwing `Task.init`.
-                    Task { () async -> Void in
+                    // Generic arguments spelled out: with `exit` returning
+                    // `Never`, the closure otherwise matches both the
+                    // throwing and the non-throwing `Task.init`.
+                    Task<Void, Never> {
                         await session.shutdown()
                         exit(0)
                     }
