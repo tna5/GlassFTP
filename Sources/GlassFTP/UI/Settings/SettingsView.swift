@@ -7,7 +7,7 @@ import SwiftUI
 /// footer, and each tab can be reset on its own.
 struct SettingsView: View {
     enum Tab: String, CaseIterable, Identifiable {
-        case general, transfers, connection, proxy, advanced
+        case general, transfers, connection, proxy, agents, advanced
         var id: String { rawValue }
     }
 
@@ -27,6 +27,9 @@ struct SettingsView: View {
             ProxySettingsTab()
                 .tabItem { Label("Proxy", systemImage: "point.3.filled.connected.trianglepath.dotted") }
                 .tag(Tab.proxy)
+            AgentsSettingsTab()
+                .tabItem { Label("Agents", systemImage: "sparkles") }
+                .tag(Tab.agents)
             AdvancedSettingsTab()
                 .tabItem { Label("Advanced", systemImage: "gearshape.2.fill") }
                 .tag(Tab.advanced)

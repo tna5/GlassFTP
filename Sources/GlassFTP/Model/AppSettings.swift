@@ -12,6 +12,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var connection = ConnectionOptions()
     var proxy = ProxySettings()
     var advanced = Advanced()
+    var agents = Agents()
 
     init() {}
 
@@ -23,6 +24,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         connection = container.value(.connection, default: defaults.connection)
         proxy = container.value(.proxy, default: defaults.proxy)
         advanced = container.value(.advanced, default: defaults.advanced)
+        agents = container.value(.agents, default: defaults.agents)
     }
 
     // MARK: - General
@@ -152,6 +154,50 @@ struct AppSettings: Codable, Equatable, Sendable {
                 chunkSize: Self.chunkSizes.contains(chunkSize) ? chunkSize : 32_768,
                 pipelineDepth: min(max(pipelineDepth, Self.pipelineRange.lowerBound), Self.pipelineRange.upperBound)
             )
+        }
+    }
+}
+
+extension AppSettings {
+    // MARK: - Agents
+
+    /// What AI agents may do through `GlassFTP --mcp` (see `MCPServer`).
+    ///
+    /// Off by default, read-only by default, and no server is shared until it
+    /// is ticked: an agent gets exactly what the user handed it and nothing
+    /// that was added later.
+    struct Agents: Codable, Equatable, Sendable {
+        enum Access: String, Codable, CaseIterable, Identifiable, Sendable {
+            case readOnly
+            case readWrite
+            case full
+
+            var id: String { rawValue }
+
+            var label: String {
+                switch self {
+                case .readOnly: return "Browse and download only"
+                case .readWrite: return "Also upload, create, rename and move"
+                case .full: return "Also delete"
+                }
+            }
+
+            var canWrite: Bool { self != .readOnly }
+            var canDelete: Bool { self == .full }
+        }
+
+        var enabled = false
+        var access = Access.readOnly
+        var allowedConnectionIDs: Set<UUID> = []
+
+        init() {}
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let defaults = Self()
+            enabled = container.value(.enabled, default: defaults.enabled)
+            access = container.value(.access, default: defaults.access)
+            allowedConnectionIDs = container.value(.allowedConnectionIDs, default: defaults.allowedConnectionIDs)
         }
     }
 }

@@ -147,6 +147,17 @@ final class AppState {
 
     /// Everything the provider needs, with secrets pulled from the Keychain.
     func configuration(for connection: Connection, password: String) -> SFTPProvider.Configuration {
+        Self.configuration(for: connection, password: password, settings: settings.settings, connections: connections)
+    }
+
+    /// Shared with `GlassFTP --mcp`, which has no `AppState` but must connect
+    /// exactly as the window does — same proxy, timeout and tuning.
+    static func configuration(
+        for connection: Connection,
+        password: String,
+        settings current: AppSettings,
+        connections: ConnectionStore
+    ) -> SFTPProvider.Configuration {
         let auth: SFTPProvider.Configuration.Auth
         switch connection.authMethod {
         case .password:
@@ -155,12 +166,11 @@ final class AppState {
             auth = .privateKey(path: connection.privateKeyPath, passphrase: connections.passphrase(for: connection))
         }
 
-        let current = settings.settings
         let proxy = ProxyResolver.resolve(
             global: current.proxy,
             override: connection.proxy,
             targetHost: connection.host,
-            password: { [connections] isGlobal in
+            password: { isGlobal in
                 isGlobal
                     ? KeychainStore.secret(account: ProxySettings.globalKeychainAccount)
                     : connections.proxyPassword(for: connection)
