@@ -29,7 +29,7 @@ enum MCPServer {
         // point file descriptor 1 at stderr for everything else.
         let protocolDescriptor = dup(STDOUT_FILENO)
         dup2(STDERR_FILENO, STDOUT_FILENO)
-        LoggingSystem.bootstrap(StreamLogHandler.standardError)
+        LoggingSystem.bootstrap { label in StreamLogHandler.standardError(label: label) }
         // The agent going away mid-write must not kill us with SIGPIPE before
         // the connections are closed.
         signal(SIGPIPE, SIG_IGN)
@@ -47,7 +47,9 @@ enum MCPServer {
             }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    Task {
+                    // Spelled out: with `exit` returning `Never`, the closure
+                    // matches both the throwing and non-throwing `Task.init`.
+                    Task { () async -> Void in
                         await session.shutdown()
                         exit(0)
                     }

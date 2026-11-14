@@ -1,0 +1,120 @@
+# Builds GlassFTP.dmg on every push and publishes it as a GitHub release.
+#
+# - Default branch: a new release per push, tagged build-<run number> and
+#   marked Latest, so the README's Download button always gets the newest DMG.
+# - Any other branch: one rolling pre-release per branch, tagged
+#   preview-<branch>, replaced on every push and removed with the branch.
+#
+# Nothing is published unless `make test` passes first.
+name: DMG
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+  delete:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dmg-${{ github.ref }}
+  # A newer push to a branch supersedes the preview being built; releases on
+  # the default branch always finish.
+  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
+
+jobs:
+  dmg:
+    if: github.event_name != 'delete'
+    # macOS 26 SDK: the app uses the Liquid Glass APIs.
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Test
+        run: make test
+
+      - name: Stamp build number
+        id: version
+        run: |
+          /usr/libexec/PlistBuddy -c "Set CFBundleVersion ${{ github.run_number }}" Resources/Info.plist
+          echo "short=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)" >> "$GITHUB_OUTPUT"
+
+      - name: Build DMG
+        run: |
+          make bundle CONFIG=release
+          DMG_LAYOUT_TIMEOUT=60 ./scripts/make-dmg.sh
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SHORT: ${{ steps.version.outputs.short }}
+          BUILD: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          dmg="dist/GlassFTP-$SHORT.dmg"
+          sha="$(git rev-parse --short HEAD)"
+          subject="$(git log -1 --format=%s)"
+          notes="$RUNNER_TEMP/notes.md"
+
+          {
+            echo "$subject"
+            echo
+            echo "Commit \`$sha\` on \`$BRANCH\` · build $BUILD"
+            echo
+            echo "**Install:** open the DMG and drag GlassFTP onto Applications. The app is not notarized: on first launch, allow it in System Settings › Privacy & Security, or run \`xattr -dr com.apple.quarantine /Applications/GlassFTP.app\`."
+          } > "$notes"
+
+          if [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
+            gh release create "build-$BUILD" "$dmg" \
+              --target "$GITHUB_SHA" \
+              --title "GlassFTP $SHORT (build $BUILD)" \
+              --notes-file "$notes" \
+              --latest
+          else
+            slug="$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9._-' '-')"
+            tag="preview-$slug"
+            asset="dist/GlassFTP-$SHORT-$slug-$sha.dmg"
+            mv "$dmg" "$asset"
+            gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+            gh release create "$tag" "$asset" \
+              --target "$GITHUB_SHA" \
+              --title "Preview: $BRANCH" \
+              --notes-file "$notes" \
+              --prerelease \
+              --latest=false
+          fi
+
+      - name: Keep the DMG with the run
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: GlassFTP-dmg
+          path: dist/*.dmg
+          if-no-files-found: ignore
+
+  # A deleted branch takes its preview release with it.
+  cleanup:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.ref }}
+        run: |
+          slug="$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9._-' '-')"
+          gh release delete "preview-$slug" --yes --cleanup-tag || true

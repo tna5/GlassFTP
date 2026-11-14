@@ -53,6 +53,10 @@ Requires macOS 26 on an Apple Silicon Mac.
    xattr -dr com.apple.quarantine /Applications/GlassFTP.app
    ```
 
+Every push to `main` publishes a fresh DMG as the latest release, after the
+self-tests pass; each other branch keeps a rolling `preview-<branch>`
+pre-release with its newest build (see `.github/workflows/dmg.yml`).
+
 Or build it yourself — see [Building](#building).
 
 ## What it does
