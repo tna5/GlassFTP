@@ -2,8 +2,8 @@
 #
 # - Default branch: a new release per push, tagged build-<run number> and
 #   marked Latest, so the README's Download button always gets the newest DMG.
-# - Any other branch: one rolling pre-release per branch, tagged
-#   preview-<branch>, replaced on every push and removed with the branch.
+# - Any other branch: the same build and tests, with the DMG kept as an
+#   artifact of the run instead of a release.
 #
 # Nothing is published unless `make test` passes first.
 name: DMG
@@ -16,7 +16,6 @@ on:
       - 'docs/**'
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/pull_request_template.md'
-  delete:
   workflow_dispatch:
 
 permissions:
@@ -30,7 +29,6 @@ concurrency:
 
 jobs:
   dmg:
-    if: github.event_name != 'delete'
     # macOS 26 SDK: the app uses the Liquid Glass APIs.
     runs-on: macos-26
     timeout-minutes: 45
@@ -57,46 +55,41 @@ jobs:
           DMG_LAYOUT_TIMEOUT=60 ./scripts/make-dmg.sh
 
       - name: Publish
+        # Releases come from the default branch only. Other branches keep their
+        # DMG as a run artifact, so no branch name ends up on the Releases page.
+        if: github.ref_name == github.event.repository.default_branch
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.ref_name }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           SHORT: ${{ steps.version.outputs.short }}
           BUILD: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          dmg="dist/GlassFTP-$SHORT.dmg"
-          sha="$(git rev-parse --short HEAD)"
-          subject="$(git log -1 --format=%s)"
           notes="$RUNNER_TEMP/notes.md"
 
+          # A merged pull request's commit subject is "Merge pull request #N
+          # from <branch>"; its title is the first line of the body.
+          summary="$(git log -1 --format=%s)"
+          case "$summary" in
+            "Merge pull request "*) summary="$(git log -1 --format=%b | sed -n '/./{p;q;}')" ;;
+          esac
+
           {
-            echo "$subject"
-            echo
-            echo "Commit \`$sha\` on \`$BRANCH\` · build $BUILD"
+            echo "${summary:-GlassFTP $SHORT}"
             echo
             echo "**Install:** open the DMG and drag GlassFTP onto Applications. The app is not notarized: on first launch, allow it in System Settings › Privacy & Security, or run \`xattr -dr com.apple.quarantine /Applications/GlassFTP.app\`."
           } > "$notes"
 
-          if [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
-            gh release create "build-$BUILD" "$dmg" \
-              --target "$GITHUB_SHA" \
-              --title "GlassFTP $SHORT (build $BUILD)" \
-              --notes-file "$notes" \
-              --latest
-          else
-            slug="$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9._-' '-')"
-            tag="preview-$slug"
-            asset="dist/GlassFTP-$SHORT-$slug-$sha.dmg"
-            mv "$dmg" "$asset"
-            gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
-            gh release create "$tag" "$asset" \
-              --target "$GITHUB_SHA" \
-              --title "Preview: $BRANCH" \
-              --notes-file "$notes" \
-              --prerelease \
-              --latest=false
-          fi
+          gh release create "build-$BUILD" "dist/GlassFTP-$SHORT.dmg" \
+            --target "$GITHUB_SHA" \
+            --title "GlassFTP $SHORT (build $BUILD)" \
+            --notes-file "$notes" \
+            --latest
+
+          # Earlier versions of this workflow published a pre-release per
+          # branch; remove any that are left.
+          gh release list --limit 100 --json tagName --jq '.[].tagName' \
+            | { grep '^preview-' || true; } \
+            | while read -r tag; do gh release delete "$tag" --yes --cleanup-tag; done
 
       - name: Keep the DMG with the run
         if: always()
@@ -105,16 +98,3 @@ jobs:
           name: GlassFTP-dmg
           path: dist/*.dmg
           if-no-files-found: ignore
-
-  # A deleted branch takes its preview release with it.
-  cleanup:
-    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
-    runs-on: ubuntu-latest
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          BRANCH: ${{ github.event.ref }}
-        run: |
-          slug="$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9._-' '-')"
-          gh release delete "preview-$slug" --yes --cleanup-tag || true
