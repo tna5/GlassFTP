@@ -35,7 +35,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Toolchain
         run: |
@@ -100,7 +100,7 @@ jobs:
 
       - name: Keep the DMG with the run
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: GlassFTP-dmg
           path: dist/*.dmg
