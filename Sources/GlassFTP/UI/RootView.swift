@@ -109,7 +109,12 @@ private struct RootSheets: ViewModifier {
         @Bindable var app = app
 
         return content
-            .sheet(isPresented: $app.updates.isPresented) {
+            // A plain binding: `updates` is a `let` on AppState, which
+            // `$app.updates.isPresented` cannot write through.
+            .sheet(isPresented: .init(
+                get: { app.updates.isPresented },
+                set: { app.updates.isPresented = $0 }
+            )) {
                 UpdateSheet()
             }
             .sheet(item: $app.editingConnection) { connection in
