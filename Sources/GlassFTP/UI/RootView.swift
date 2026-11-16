@@ -35,7 +35,12 @@ struct RootView: View {
         .onChange(of: app.settings.settings) { _, _ in
             app.applySettings()
         }
-        .task { app.reconnectIfWanted() }
+        .task {
+            app.reconnectIfWanted()
+            if app.settings.settings.general.checkForUpdates {
+                await app.updates.checkAtLaunch()
+            }
+        }
     }
 
     private var isBrowsing: Bool {
@@ -104,6 +109,9 @@ private struct RootSheets: ViewModifier {
         @Bindable var app = app
 
         return content
+            .sheet(isPresented: $app.updates.isPresented) {
+                UpdateSheet()
+            }
             .sheet(item: $app.editingConnection) { connection in
                 ConnectionEditor(
                     connection: connection,

@@ -1,0 +1,105 @@
+# Measures transfer speed against a real OpenSSH server on the runner, with
+# and without added latency, comparing the previous tuning ("legacy") with the
+# current one. Every transferred file is checked byte for byte.
+#
+# Results land in the run's summary. Nothing is published.
+name: Transfer benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'Sources/GlassFTP/SFTP/**'
+      - 'Sources/GlassFTP/Benchmark.swift'
+      - 'Sources/GlassFTP/Model/AppSettings.swift'
+      - '.github/workflows/benchmark.yml'
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: macos-26
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # One-way delay added on loopback; the round trip is twice this.
+        latency: [0, 25, 50]
+    name: benchmark (+${{ matrix.latency }} ms each way)
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: swift build -c release
+
+      - name: Start a local sshd
+        run: |
+          d="$RUNNER_TEMP/sshd"
+          mkdir -p "$d"
+          ssh-keygen -q -t ed25519 -N '' -f "$d/host_key"
+          ssh-keygen -q -t ed25519 -N '' -f "$d/client_key"
+          cp "$d/client_key.pub" "$d/authorized_keys"
+          cat > "$d/sshd_config" <<EOF
+          Port 2222
+          ListenAddress 127.0.0.1
+          HostKey $d/host_key
+          PidFile $d/sshd.pid
+          AuthorizedKeysFile $d/authorized_keys
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          UsePAM no
+          StrictModes no
+          Subsystem sftp internal-sftp
+          EOF
+          /usr/sbin/sshd -f "$d/sshd_config" -E "$d/sshd.log"
+          sleep 1
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes \
+            -i "$d/client_key" -p 2222 127.0.0.1 true || { cat "$d/sshd.log"; exit 1; }
+          dd if=/dev/urandom of="$RUNNER_TEMP/big.bin" bs=1048576 count=256 2>/dev/null
+
+      - name: Add latency
+        if: matrix.latency != 0
+        run: |
+          sudo dnctl pipe 1 config delay ${{ matrix.latency }}
+          printf 'dummynet-anchor "bench"\nanchor "bench"\n' | sudo pfctl -q -f -
+          printf 'dummynet out quick on lo0 proto tcp from any to any port 2222 pipe 1\ndummynet out quick on lo0 proto tcp from any port 2222 to any pipe 1\n' \
+            | sudo pfctl -q -a bench -f -
+          sudo pfctl -q -E || true
+          sudo dnctl list
+
+      - name: Benchmark
+        run: |
+          set -o pipefail
+          results="$RUNNER_TEMP/results.txt"
+          for tuning in legacy current oversize; do
+            .build/release/GlassFTP --benchmark \
+              --host 127.0.0.1 --port 2222 --user "$(whoami)" \
+              --key "$RUNNER_TEMP/sshd/client_key" \
+              --remote "$RUNNER_TEMP/big.bin" --local "$RUNNER_TEMP" \
+              --tuning "$tuning" | tee -a "$results"
+          done
+
+          echo "Integrity:"
+          expected="$(shasum -a 256 < "$RUNNER_TEMP/big.bin")"
+          status=0
+          for tuning in legacy current oversize; do
+            for copy in "$RUNNER_TEMP/download-$tuning.bin" "$RUNNER_TEMP/big.bin.$tuning.up"; do
+              if [ "$(shasum -a 256 < "$copy")" = "$expected" ]; then
+                echo "  ok    $(basename "$copy")"
+              else
+                echo "  FAIL  $(basename "$copy") differs from the original"
+                status=1
+              fi
+            done
+          done | tee -a "$results"
+
+          {
+            echo "### +${{ matrix.latency }} ms each way"
+            echo '```'
+            cat "$results"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          ! grep -q FAIL "$results"

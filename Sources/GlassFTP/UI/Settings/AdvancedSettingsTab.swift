@@ -15,25 +15,28 @@ struct AdvancedSettingsTab: View {
             store.settings.advanced = .init()
         } content: {
             Section {
-                Picker("Chunk size", selection: $store.settings.advanced.chunkSize) {
-                    ForEach(AppSettings.Advanced.chunkSizes, id: \.self) { size in
-                        Text("\(size / 1024) KB\(size == 32_768 ? " (recommended)" : "")").tag(size)
+                Toggle("Tune transfers automatically", isOn: $store.settings.advanced.automaticTuning)
+                if !store.settings.advanced.automaticTuning {
+                    Picker("Read size", selection: $store.settings.advanced.chunkSize) {
+                        ForEach(AppSettings.Advanced.chunkSizes, id: \.self) { size in
+                            Text("\(size / 1024) KB").tag(size)
+                        }
                     }
-                }
-                LabeledContent("Requests in flight per file") {
-                    Stepper(
-                        value: $store.settings.advanced.pipelineDepth,
-                        in: AppSettings.Advanced.pipelineRange
-                    ) {
-                        Text("\(store.settings.advanced.pipelineDepth)")
-                            .monospacedDigit()
-                            .frame(minWidth: 24, alignment: .trailing)
+                    LabeledContent("Requests in flight per file") {
+                        Stepper(
+                            value: $store.settings.advanced.pipelineDepth,
+                            in: AppSettings.Advanced.pipelineRange
+                        ) {
+                            Text("\(store.settings.advanced.pipelineDepth)")
+                                .monospacedDigit()
+                                .frame(minWidth: 28, alignment: .trailing)
+                        }
                     }
                 }
             } header: {
                 Text("Transfer Tuning")
             } footer: {
-                SettingsFooter("A file is read and written in chunks, several at once. More requests in flight help on high-latency links; larger chunks are refused by some servers. Applies to the next connection.")
+                SettingsFooter("Automatic asks for 255 KB per read, keeps about 8 MB of reads and 4 MB of writes in flight per file and gives the server a 16 MB window, which fills fast links even at high latency. Servers that answer smaller reads are detected on the first one. Tune by hand only to work around a server that misbehaves. Applies to the next connection.")
             }
 
             Section {

@@ -87,7 +87,7 @@ Or build it yourself — see [Building](#building).
 - **Go to Folder** — ⌘⇧G drops the Finder's panel down from the top of the window: absolute or relative paths, `~`
   and `..`, Tab completion, recent folders. A path to a file opens its folder
   with the file selected.
-- **Transfers** — up to ten files at once (four by default), each on its own
+- **Transfers** — up to ten files at once (eight by default), each on its own
   SSH connection, separate from the one that browses. Recursive folders,
   per-job speed and time remaining, cancellation. An existing destination is
   handled per Settings — ask, overwrite, overwrite if newer or if the size
@@ -110,6 +110,11 @@ Or build it yourself — see [Building](#building).
 - **Host keys** — trust-on-first-use against `~/.ssh/known_hosts`, sharing the
   same file as OpenSSH. A pinned host that presents a different key of the same
   type is refused outright, with no override.
+- **Updates** — at launch GlassFTP asks GitHub for the latest `build-N`
+  release and, when it is newer than the running build, offers to install it:
+  it downloads the disk image, swaps the app in place and relaunches. Skip a
+  version, or turn the check off in Settings › General; GlassFTP › Check for
+  Updates… looks right away.
 - **AI agents (MCP)** — Settings › Agents lets Claude Desktop, Claude Code,
   Cursor or any other MCP client use the servers you pick. See
   [AI agents](#ai-agents-mcp).
@@ -192,13 +197,34 @@ by size **22 ms**, filter **67 ms** — and reads are free.
 
 ### Transfers
 
-One 32 KB chunk in flight caps throughput by latency rather than bandwidth: at
-50 ms round trip that is ~640 KB/s no matter how fast the link is. Transfers now
-keep **16 chunk requests in flight**, writing with `pwrite` at absolute offsets
-(`FileHandle.seek` + `write` is two steps against one shared offset and cannot
-be used concurrently). The file is deliberately *not* pre-allocated: after a
-crash a pre-allocated file has its final size and nothing says how much of it
-is real, whereas without it the size is the highest offset written.
+On one connection, throughput is capped at *bytes in flight ÷ round trip*, so a
+fast link only fills if enough is in flight. Three limits used to stack up:
+
+- **The SSH window.** NIOSSH grants the server a receive window equal to its
+  maximum packet size, 128 KB by default — at 50 ms round trip that alone caps a
+  download at 2.6 MB/s. GlassFTP raises it to 16 MB, NIOSSH's ceiling, through
+  Citadel's `maximumPacketSize` option.
+- **Read size.** Reads ask for 255 KB, the most OpenSSH's `sftp-server` answers.
+  The first read of each file doubles as a probe: a server that answers less
+  sets the size for the rest of the file, and the number of requests grows to
+  keep the same bytes in flight, so no chunk needs a sequential top-up.
+- **Write size.** Citadel cuts every write into 32,000-byte requests sent one
+  after another, so a 32 KB chunk cost two round trips (32,000 + 768 bytes).
+  Writes are now exactly 32,000 bytes, 128 in flight (≈ 4 MB).
+
+That is about 8 MB in flight per download and 4 MB per upload, against 128 KB
+before, and never more than 8 MB (`SFTPProvider.Tuning.maximumBytesInFlight`).
+Chunks go from the SFTP response buffer straight to `pwrite`, and uploads
+`pread` straight into the buffer that is sent, with no intermediate copies.
+Writes use absolute offsets because `FileHandle.seek` + `write` is two steps
+against one shared offset and cannot be used concurrently. The file is
+deliberately *not* pre-allocated: after a crash a pre-allocated file has its
+final size and nothing says how much of it is real, whereas without it the size
+is the highest offset written.
+
+Settings › Advanced › **Tune transfers automatically** is on by default, also
+for settings saved by earlier versions, whose 32 KB × 16 values would otherwise
+keep applying.
 
 Each chunk loops until it is full or the file ends. A server may legally return
 fewer bytes than asked for without being at EOF, and with workers writing at
@@ -249,10 +275,9 @@ connections — so a folder of ten thousand files keeps several connections busy
 and browsing never waits behind a download. A job is still one row with
 aggregate counters.
 
-Resuming backs off from the end of the partial file by `pipelineDepth ×
-chunkSize` at their largest settings (4 MB): chunks land out of order, so the
-bytes just below the end may hold holes left by requests still in flight when
-the transfer stopped.
+Resuming backs off from the end of the partial file by the most a transfer can
+have in flight (8 MB): chunks land out of order, so the bytes just below the
+end may hold holes left by requests still in flight when the transfer stopped.
 
 ### Proxies
 
