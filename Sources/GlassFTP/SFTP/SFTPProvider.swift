@@ -36,15 +36,16 @@ actor SFTPProvider: FileProvider {
         /// lower answers short, and the download adopts what it answers with
         /// (see `performDownload`).
         var readSize = 261_120
-        var readsInFlight = 16
+        /// 32 × 255 KB ≈ 8 MB, right at `maximumBytesInFlight`.
+        var readsInFlight = 32
 
         /// Bytes per write request. Citadel cuts every write into 32,000-byte
         /// requests sent one after another, so anything that is not a
         /// multiple of that costs an extra round trip for the remainder.
         var writeSize = 32_000
-        /// 64 × 32,000 ≈ 2 MB, OpenSSH's channel window: more in flight would
-        /// only queue behind it.
-        var writesInFlight = 64
+        /// 128 × 32,000 ≈ 4 MB. A server whose channel window is smaller
+        /// holds the rest back; NIOSSH queues it until the window opens.
+        var writesInFlight = 128
 
         /// The SSH channel window we grant the server, i.e. how much it may
         /// send before waiting for us to acknowledge. NIOSSH ties it to the

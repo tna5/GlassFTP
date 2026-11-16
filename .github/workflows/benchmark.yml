@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         # One-way delay added on loopback; the round trip is twice this.
-        latency: [0, 25]
+        latency: [0, 25, 50]
     name: benchmark (+${{ matrix.latency }} ms each way)
     steps:
       - uses: actions/checkout@v5

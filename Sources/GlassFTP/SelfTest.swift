@@ -463,7 +463,7 @@ enum SelfTest {
         expect(tuning.tuning.writesInFlight, 65_536 * 16 / 32_000, "writes keep as many bytes in flight as reads")
 
         let budget = SFTPProvider.Tuning.maximumBytesInFlight
-        expect(SFTPProvider.Tuning.depth(16, chunk: 261_120), 16, "the default read depth fits the budget")
+        expect(SFTPProvider.Tuning.depth(SFTPProvider.Tuning().readsInFlight, chunk: 261_120), SFTPProvider.Tuning().readsInFlight, "the default read depth fits the budget")
         expect(SFTPProvider.Tuning.depth(10_000, chunk: 32_000) * 32_000 <= budget, "a huge depth is held to the budget")
         expect(SFTPProvider.Tuning.depth(0, chunk: 0), 1, "a zero depth or chunk still moves data")
         let shrunk = SFTPProvider.Tuning()

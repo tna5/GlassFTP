@@ -205,10 +205,9 @@ fast link only fills if enough is in flight. Three limits used to stack up:
   keep the same bytes in flight, so no chunk needs a sequential top-up.
 - **Write size.** Citadel cuts every write into 32,000-byte requests sent one
   after another, so a 32 KB chunk cost two round trips (32,000 + 768 bytes).
-  Writes are now exactly 32,000 bytes, 64 in flight (≈ 2 MB, OpenSSH's own
-  channel window).
+  Writes are now exactly 32,000 bytes, 128 in flight (≈ 4 MB).
 
-That is about 4 MB in flight per download and 2 MB per upload, against 128 KB
+That is about 8 MB in flight per download and 4 MB per upload, against 128 KB
 before, and never more than 8 MB (`SFTPProvider.Tuning.maximumBytesInFlight`).
 Chunks go from the SFTP response buffer straight to `pwrite`, and uploads
 `pread` straight into the buffer that is sent, with no intermediate copies.

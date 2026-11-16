@@ -36,7 +36,7 @@ struct AdvancedSettingsTab: View {
             } header: {
                 Text("Transfer Tuning")
             } footer: {
-                SettingsFooter("Automatic asks for 255 KB per read, keeps about 4 MB in flight per file and gives the server a 16 MB window, which fills fast links even at high latency. Servers that answer smaller reads are detected on the first one. Tune by hand only to work around a server that misbehaves. Applies to the next connection.")
+                SettingsFooter("Automatic asks for 255 KB per read, keeps about 8 MB of reads and 4 MB of writes in flight per file and gives the server a 16 MB window, which fills fast links even at high latency. Servers that answer smaller reads are detected on the first one. Tune by hand only to work around a server that misbehaves. Applies to the next connection.")
             }
 
             Section {
