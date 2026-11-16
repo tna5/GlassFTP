@@ -30,6 +30,9 @@ struct GlassFTPApp: App {
         if CommandLine.arguments.contains("--self-test") {
             exit(SelfTest.run())
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--benchmark") {
+            exit(TransferBenchmark.run(Array(CommandLine.arguments[index...])))
+        }
         // Started by an AI agent as its MCP server: no window, see `MCPServer`.
         if CommandLine.arguments.contains("--mcp") {
             MCPServer.run()

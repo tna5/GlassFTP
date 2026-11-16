@@ -1,4 +1,5 @@
 import Foundation
+import NIOCore
 
 /// A local file accessed by absolute offset.
 ///
@@ -67,6 +68,48 @@ final class ChunkedFile: @unchecked Sendable {
                 written += result
             }
         }
+    }
+
+    /// Writes a buffer's readable bytes straight from its storage, with no
+    /// intermediate copy.
+    func write(_ buffer: ByteBuffer, at offset: Int64) throws {
+        try buffer.withUnsafeReadableBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            var written = 0
+            while written < raw.count {
+                let result = pwrite(
+                    descriptor,
+                    base.advanced(by: written),
+                    raw.count - written,
+                    off_t(offset) + off_t(written)
+                )
+                guard result > 0 else { throw Self.errnoError("write") }
+                written += result
+            }
+        }
+    }
+
+    /// Reads up to `count` bytes at `offset` directly into a new buffer, ready
+    /// to hand to the SFTP client. A short result means end of file.
+    func readBuffer(count: Int, at offset: Int64, allocator: ByteBufferAllocator) throws -> ByteBuffer {
+        var buffer = allocator.buffer(capacity: count)
+        try buffer.writeWithUnsafeMutableBytes(minimumWritableBytes: count) { raw in
+            guard let base = raw.baseAddress else { return 0 }
+            var filled = 0
+            while filled < count {
+                let result = pread(
+                    descriptor,
+                    base.advanced(by: filled),
+                    count - filled,
+                    off_t(offset) + off_t(filled)
+                )
+                if result == 0 { break }
+                guard result > 0 else { throw Self.errnoError("read") }
+                filled += result
+            }
+            return filled
+        }
+        return buffer
     }
 
     /// Reads up to `count` bytes at `offset`. A short result means end of file.

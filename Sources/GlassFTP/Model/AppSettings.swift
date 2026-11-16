@@ -70,7 +70,9 @@ struct AppSettings: Codable, Equatable, Sendable {
         static let retryRange = 0...5
 
         /// How many files move at once, each over its own SSH connection.
-        var maxConcurrent = 4
+        /// Eight overlaps the per-file round trips of a folder of small files
+        /// and stays under OpenSSH's default `MaxStartups` of 10 handshakes.
+        var maxConcurrent = 8
         var askForDownloadFolder = true
         /// Used when `askForDownloadFolder` is off.
         var downloadFolder = FileManager.default
@@ -132,10 +134,16 @@ struct AppSettings: Codable, Equatable, Sendable {
     // MARK: - Advanced
 
     struct Advanced: Codable, Equatable, Sendable {
-        static let chunkSizes = [16_384, 32_768, 65_536]
-        static let pipelineRange = 1...64
+        /// Read sizes offered when tuning by hand. 255 KB is the most OpenSSH
+        /// answers per read.
+        static let chunkSizes = [32_768, 65_536, 131_072, 261_120]
+        static let pipelineRange = 1...128
 
-        var chunkSize = 32_768
+        /// On by default, and on for settings saved before it existed: those
+        /// carry the old 32 KB × 16 values, which would keep the transfers
+        /// that saved them slow.
+        var automaticTuning = true
+        var chunkSize = 261_120
         var pipelineDepth = 16
 
         init() {}
@@ -143,6 +151,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let defaults = Self()
+            automaticTuning = container.value(.automaticTuning, default: defaults.automaticTuning)
             chunkSize = container.value(.chunkSize, default: defaults.chunkSize)
             pipelineDepth = container.value(.pipelineDepth, default: defaults.pipelineDepth)
         }
@@ -150,10 +159,17 @@ struct AppSettings: Codable, Equatable, Sendable {
         /// Never trust a stored value blindly: a zero chunk size would spin
         /// forever, and a huge one gets truncated or rejected by the server.
         var tuning: SFTPProvider.Tuning {
-            SFTPProvider.Tuning(
-                chunkSize: Self.chunkSizes.contains(chunkSize) ? chunkSize : 32_768,
-                pipelineDepth: min(max(pipelineDepth, Self.pipelineRange.lowerBound), Self.pipelineRange.upperBound)
-            )
+            guard !automaticTuning else { return SFTPProvider.Tuning() }
+
+            let size = Self.chunkSizes.contains(chunkSize) ? chunkSize : 261_120
+            let depth = min(max(pipelineDepth, Self.pipelineRange.lowerBound), Self.pipelineRange.upperBound)
+            var tuning = SFTPProvider.Tuning()
+            tuning.readSize = size
+            tuning.readsInFlight = depth
+            // Writes are always 32,000-byte requests (see `Tuning`); keep the
+            // same number of bytes in flight as the reads.
+            tuning.writesInFlight = max(1, size * depth / tuning.writeSize)
+            return tuning
         }
     }
 }

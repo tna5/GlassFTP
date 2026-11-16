@@ -6,11 +6,11 @@ enum TransferPlanner {
     ///
     /// Chunks are transferred out of order, so the bytes just below a partial
     /// file's end may include holes left by chunks still in flight when it
-    /// stopped. At most `pipelineDepth` chunks are in flight, so the holes
-    /// lie within `pipelineDepth × chunkSize` of the end; this covers the
-    /// largest values Settings allows (64 × 64 KB), whatever they were when
-    /// the partial file was written.
-    static let resumeSafetyMargin: Int64 = 64 * 65_536
+    /// stopped. A transfer never has more than
+    /// `SFTPProvider.Tuning.maximumBytesInFlight` in flight, whatever the
+    /// settings were when the partial file was written, so the holes lie
+    /// within that distance of the end.
+    static let resumeSafetyMargin = Int64(SFTPProvider.Tuning.maximumBytesInFlight)
 
     /// Finder-style disambiguation so a second download does not silently
     /// clobber the first.

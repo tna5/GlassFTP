@@ -446,11 +446,32 @@ enum SelfTest {
         odd.maxConcurrent = 99
         expect(odd.clampedConcurrency, 10, "concurrency is clamped to the allowed range")
 
+        expect(AppSettings.Advanced().tuning, SFTPProvider.Tuning(), "transfers tune themselves by default")
+        let oldTuning = try? decoder.decode(AppSettings.self, from: Data(#"{"advanced":{"chunkSize":32768,"pipelineDepth":16}}"#.utf8))
+        expect(oldTuning?.advanced.automaticTuning == true, "settings saved before automatic tuning switch it on")
+        expect(oldTuning?.advanced.tuning ?? .legacy, SFTPProvider.Tuning(), "so their old 32 KB × 16 values no longer apply")
+
         var tuning = AppSettings.Advanced()
+        tuning.automaticTuning = false
         tuning.chunkSize = 0
         tuning.pipelineDepth = 1_000
-        expect(tuning.tuning.chunkSize, 32_768, "an unknown chunk size falls back to 32 KB")
-        expect(tuning.tuning.pipelineDepth, 64, "pipeline depth is clamped")
+        expect(tuning.tuning.readSize, 261_120, "an unknown read size falls back to 255 KB")
+        expect(tuning.tuning.readsInFlight, 128, "requests in flight are clamped")
+        expect(tuning.tuning.writeSize, 32_000, "writes stay at Citadel's 32,000-byte requests")
+        tuning.chunkSize = 65_536
+        tuning.pipelineDepth = 16
+        expect(tuning.tuning.writesInFlight, 65_536 * 16 / 32_000, "writes keep as many bytes in flight as reads")
+
+        let budget = SFTPProvider.Tuning.maximumBytesInFlight
+        expect(SFTPProvider.Tuning.depth(16, chunk: 261_120), 16, "the default read depth fits the budget")
+        expect(SFTPProvider.Tuning.depth(10_000, chunk: 32_000) * 32_000 <= budget, "a huge depth is held to the budget")
+        expect(SFTPProvider.Tuning.depth(0, chunk: 0), 1, "a zero depth or chunk still moves data")
+        let shrunk = SFTPProvider.Tuning()
+        let shrunkDepth = SFTPProvider.Tuning.depth(shrunk.readsInFlight * shrunk.readSize / 32_768, chunk: 32_768)
+        expect(shrunkDepth * 32_768 >= shrunk.readsInFlight * shrunk.readSize - 32_768, "a server answering 32 KB reads keeps the same bytes in flight")
+        expect(SFTPProvider.Tuning().readsInFlight * SFTPProvider.Tuning().readSize <= budget, "automatic reads fit the budget")
+        expect(SFTPProvider.Tuning().writesInFlight * SFTPProvider.Tuning().writeSize <= budget, "automatic writes fit the budget")
+        expect(TransferPlanner.resumeSafetyMargin >= Int64(budget), "resuming backs off past anything that can be in flight")
 
         let roundTrip = try? decoder.decode(AppSettings.self, from: JSONEncoder().encode(partial ?? AppSettings()))
         expect(roundTrip == partial, "settings round-trip through JSON")
@@ -571,9 +592,9 @@ enum SelfTest {
         section("TransferPlanner.resolve")
         let old = Date(timeIntervalSince1970: 1_000)
         let new = Date(timeIntervalSince1970: 2_000)
-        let source = TransferPlanner.FileFacts(size: 10_000_000, modifiedAt: new)
-        let smaller = TransferPlanner.FileFacts(size: 6_000_000, modifiedAt: old)
-        let same = TransferPlanner.FileFacts(size: 10_000_000, modifiedAt: new.addingTimeInterval(0.5))
+        let source = TransferPlanner.FileFacts(size: 40_000_000, modifiedAt: new)
+        let smaller = TransferPlanner.FileFacts(size: 20_000_000, modifiedAt: old)
+        let same = TransferPlanner.FileFacts(size: 40_000_000, modifiedAt: new.addingTimeInterval(0.5))
 
         expect(TransferPlanner.resolve(.overwrite, source: source, destination: same), .transfer(resumeFrom: 0), "overwrite always sends")
         expect(TransferPlanner.resolve(.skip, source: source, destination: smaller), .skip, "skip always skips")
@@ -590,7 +611,7 @@ enum SelfTest {
         expect(TransferPlanner.resolve(.overwriteIfSizeDiffers, source: source, destination: smaller), .transfer(resumeFrom: 0), "different sizes are sent")
         expect(
             TransferPlanner.resolve(.resume, source: source, destination: smaller),
-            .transfer(resumeFrom: 6_000_000 - TransferPlanner.resumeSafetyMargin),
+            .transfer(resumeFrom: 20_000_000 - TransferPlanner.resumeSafetyMargin),
             "resume backs off by the safety margin"
         )
         expect(TransferPlanner.resolve(.resume, source: source, destination: same), .skip, "a complete file is not resumed")
