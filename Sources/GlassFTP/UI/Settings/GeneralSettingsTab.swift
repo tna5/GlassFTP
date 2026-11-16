@@ -41,8 +41,11 @@ struct GeneralSettingsTab: View {
 
             Section {
                 Toggle("Reconnect to the last server at launch", isOn: $store.settings.general.reconnectOnLaunch)
+                Toggle("Check for updates at launch", isOn: $store.settings.general.checkForUpdates)
             } header: {
                 Text("Startup")
+            } footer: {
+                SettingsFooter("GlassFTP asks GitHub for the latest release when it opens and offers to install it. GlassFTP › Check for Updates… looks right away.")
             }
         }
     }

@@ -48,6 +48,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         var foldersFirst = true
         var confirmBeforeDelete = true
         var reconnectOnLaunch = false
+        var checkForUpdates = true
         var fileOpenAction = FileOpenAction.download
 
         init() {}
@@ -59,6 +60,7 @@ struct AppSettings: Codable, Equatable, Sendable {
             foldersFirst = container.value(.foldersFirst, default: defaults.foldersFirst)
             confirmBeforeDelete = container.value(.confirmBeforeDelete, default: defaults.confirmBeforeDelete)
             reconnectOnLaunch = container.value(.reconnectOnLaunch, default: defaults.reconnectOnLaunch)
+            checkForUpdates = container.value(.checkForUpdates, default: defaults.checkForUpdates)
             fileOpenAction = container.value(.fileOpenAction, default: defaults.fileOpenAction)
         }
     }

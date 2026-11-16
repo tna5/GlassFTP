@@ -57,6 +57,12 @@ struct GlassFTPApp: App {
 
     @CommandsBuilder
     private var commands: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") {
+                Task { await app.updates.checkNow() }
+            }
+        }
+
         CommandGroup(replacing: .newItem) {
             Button("New Connection…") {
                 app.isEditingNewConnection = true

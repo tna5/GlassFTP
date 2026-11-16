@@ -110,6 +110,11 @@ Or build it yourself — see [Building](#building).
 - **Host keys** — trust-on-first-use against `~/.ssh/known_hosts`, sharing the
   same file as OpenSSH. A pinned host that presents a different key of the same
   type is refused outright, with no override.
+- **Updates** — at launch GlassFTP asks GitHub for the latest `build-N`
+  release and, when it is newer than the running build, offers to install it:
+  it downloads the disk image, swaps the app in place and relaunches. Skip a
+  version, or turn the check off in Settings › General; GlassFTP › Check for
+  Updates… looks right away.
 - **AI agents (MCP)** — Settings › Agents lets Claude Desktop, Claude Code,
   Cursor or any other MCP client use the servers you pick. See
   [AI agents](#ai-agents-mcp).

@@ -11,6 +11,7 @@ final class AppState {
     let shortcuts = ShortcutStore()
     let transfers = TransferManager()
     let hostKeyPrompter = HostKeyPrompter()
+    let updates = UpdateChecker()
 
     /// The live session, or `nil` when nothing is connected.
     var session: BrowserModel?

@@ -32,6 +32,7 @@ enum SelfTest {
         privateKeyTests()
         knownHostsRemovalTests()
         agentTests()
+        updateTests()
         scaleBenchmark()
 
         print("")
@@ -498,6 +499,26 @@ enum SelfTest {
 
         let again = try? JSONDecoder().decode(Connection.self, from: JSONEncoder().encode(connection))
         expect(again == connection, "new fields round-trip, custom proxy included")
+    }
+
+    // MARK: - Updates
+
+    private static func updateTests() {
+        section("Updates")
+
+        func release(_ json: String) -> UpdateChecker.Release? {
+            UpdateChecker.parse(Data(json.utf8))
+        }
+        let good = release(#"{"tag_name":"build-12","name":"GlassFTP 1.0.0 (build 12)","body":"Faster transfers","html_url":"https://github.com/o/r/releases/tag/build-12","assets":[{"name":"GlassFTP-1.0.0.dmg","browser_download_url":"https://github.com/o/r/releases/download/build-12/GlassFTP-1.0.0.dmg"}]}"#)
+        expect(good?.build ?? 0, 12, "the build number comes from the tag")
+        expect(good?.downloadURL.lastPathComponent ?? "", "GlassFTP-1.0.0.dmg", "the disk image is the download")
+        expect(good?.notes ?? "", "Faster transfers", "release notes are kept")
+
+        expect(release(#"{"tag_name":"v1.0.0","html_url":"https://x/y","assets":[{"name":"a.dmg","browser_download_url":"https://x/a.dmg"}]}"#) == nil, "a release without a build number is never offered")
+        expect(release(#"{"tag_name":"build-13","html_url":"https://x/y","assets":[{"name":"a.zip","browser_download_url":"https://x/a.zip"}]}"#) == nil, "a release without a disk image is not offered")
+        expect(release(#"{"tag_name":"build-14","html_url":"https://x/y","assets":[{"name":"a.dmg","browser_download_url":"http://x/a.dmg"}]}"#) == nil, "a download over plain HTTP is refused")
+        expect(release("not json") == nil, "garbage is ignored")
+        expect(AppSettings().general.checkForUpdates, "updates are checked at launch by default")
     }
 
     // MARK: - Agents (MCP)
