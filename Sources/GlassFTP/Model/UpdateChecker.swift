@@ -42,22 +42,24 @@ final class UpdateChecker {
         self.defaults = defaults
     }
 
-    static var currentBuild: Int {
+    // Nonisolated: they only read Info.plist, and `latestRelease` runs off
+    // the main actor.
+    nonisolated static var currentBuild: Int {
         Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "") ?? 0
     }
 
-    static var currentVersion: String {
+    nonisolated static var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
     }
 
     /// `owner/name` on GitHub; a fork changes it in Info.plist.
-    static var repository: String {
+    nonisolated static var repository: String {
         Bundle.main.infoDictionary?["GlassFTPUpdateRepository"] as? String ?? "tna5/GlassFTP"
     }
 
     /// Only an app bundle can replace itself; `swift run` and the bare binary
     /// in `.build` cannot.
-    static var canInstall: Bool {
+    nonisolated static var canInstall: Bool {
         Bundle.main.bundleURL.pathExtension == "app"
     }
 
